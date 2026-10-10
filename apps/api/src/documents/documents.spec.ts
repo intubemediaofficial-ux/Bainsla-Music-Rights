@@ -62,3 +62,13 @@ describe('template rendering', () => {
     expect(rows[1].duration).toBe('3:05');
   });
 });
+
+describe('pdf page fonts', () => {
+  it('inlines Noto fonts as data URIs so Chromium can load them from setContent', async () => {
+    const { page } = await import('./render.service.js');
+    const html = page('t', '<p>नमस्ते</p>');
+    expect(html).toContain("font-family:DocHi;src:url('data:font/ttf;base64,");
+    expect(html).not.toContain('file://');
+  });
+});
+

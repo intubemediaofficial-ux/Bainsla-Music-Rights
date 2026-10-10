@@ -1,5 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -37,7 +37,17 @@ export function templateVariables(body: string): string[] {
 }
 
 const FONT_DIR = [resolve(process.cwd(), 'assets/fonts'), resolve(process.cwd(), 'apps/api/assets/fonts')].find((d) => existsSync(d)) ?? resolve('assets/fonts');
-const font = (f: string) => pathToFileURL(resolve(FONT_DIR, f)).href;
+const fontCache = new Map<string, string>();
+// Inline as data: URIs — Chromium blocks file:// fonts from setContent (about:blank) pages, which made Hindi render as tofu.
+const font = (f: string) => {
+  let uri = fontCache.get(f);
+  if (!uri) {
+    const file = resolve(FONT_DIR, f);
+    uri = existsSync(file) ? `data:font/ttf;base64,${readFileSync(file).toString('base64')}` : pathToFileURL(file).href;
+    fontCache.set(f, uri);
+  }
+  return uri;
+};
 
 export function page(title: string, content: string, opts: { watermark?: string } = {}) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
