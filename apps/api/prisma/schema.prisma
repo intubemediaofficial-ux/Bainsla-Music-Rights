@@ -1,0 +1,983 @@
+// Music Rights Cloud — multi-tenant schema.
+// Every tenant-owned table carries organizationId and is protected by a Postgres
+// row-level-security policy (see migrations/*_rls). The API connects as a
+// non-owner role, so rows are only visible inside a tenant transaction.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum OrgStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  RIGHTS_MANAGER
+  LEGAL_REVIEWER
+  CATALOG_EDITOR
+  VIEWER
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum PartyType {
+  ARTIST
+  SINGER
+  WRITER
+  LYRICIST
+  COMPOSER
+  PRODUCER
+  STUDIO
+  PUBLISHER
+  LABEL
+  DISTRIBUTOR
+  OTHER
+}
+
+enum AssetType {
+  WORK
+  RECORDING
+  RELEASE
+}
+
+enum ReleaseType {
+  SINGLE
+  EP
+  ALBUM
+  COMPILATION
+}
+
+enum ContributorRole {
+  LYRICIST
+  COMPOSER
+  WRITER
+  SINGER
+  PERFORMER
+  FEATURED_ARTIST
+  MUSIC_DIRECTOR
+  PRODUCER
+  ARRANGER
+  MIX_ENGINEER
+  MASTERING_ENGINEER
+  PUBLISHER
+  LABEL
+  OTHER
+}
+
+enum RightType {
+  MASTER
+  COMPOSITION
+  LYRICS
+  PUBLISHING
+  PERFORMANCE
+  MECHANICAL
+  SYNC
+  NEIGHBOURING
+  OTHER
+}
+
+/// asserted = someone says so; reviewed = internally checked; documented = backed by executed evidence
+enum ClaimStatus {
+  ASSERTED
+  UNDER_REVIEW
+  REVIEWED
+  DOCUMENTED
+  DISPUTED
+  UNKNOWN
+  REJECTED
+}
+
+enum DocumentStatus {
+  DRAFT
+  UNDER_REVIEW
+  APPROVED_TEMPLATE
+  SENT_FOR_SIGNATURE
+  EXECUTED
+  REJECTED
+  SUPERSEDED
+  EXPIRED
+}
+
+enum DocumentCategory {
+  AGREEMENT
+  NOC
+  ANNEXURE
+  DECLARATION
+  CERTIFICATE
+  REGISTRATION
+  EVIDENCE
+  CORRESPONDENCE
+  INVOICE
+  OTHER
+}
+
+enum OwnerType {
+  ORGANIZATION
+  PARTY
+  WORK
+  RECORDING
+  RELEASE
+  RIGHTS_CLAIM
+  RIGHTS_TRANSFER
+  LICENSE
+  AGREEMENT
+  REGISTRATION
+  DISPUTE
+  VERIFICATION_PACKAGE
+}
+
+enum ScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  SKIPPED
+  FAILED
+}
+
+enum TemplateKind {
+  AGREEMENT
+  NOC
+  ANNEXURE
+  DECLARATION
+}
+
+enum AgreementType {
+  ASSIGNMENT
+  EXCLUSIVE_LICENSE
+  NON_EXCLUSIVE_LICENSE
+  PUBLISHING
+  PRODUCER
+  ARTIST
+  WORK_FOR_HIRE
+  NOC
+  OTHER
+}
+
+enum RegistrationStatus {
+  PLANNED
+  FILED
+  UNDER_EXAMINATION
+  OBJECTION
+  HEARING
+  REGISTERED
+  REJECTED
+  WITHDRAWN
+}
+
+enum DisputeStatus {
+  OPEN
+  EVIDENCE_SUBMITTED
+  AWAITING_RESPONSE
+  ESCALATED
+  RESOLVED_WON
+  RESOLVED_LOST
+  WITHDRAWN
+}
+
+enum DisputeEventType {
+  NOTE
+  CORRESPONDENCE
+  EVIDENCE
+  DEADLINE
+  STATUS_CHANGE
+}
+
+enum VerificationStatus {
+  INTERNALLY_REVIEWED
+  INCOMPLETE
+  DISPUTED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum UsageMetric {
+  STORAGE_BYTES
+  PDF_JOBS
+  EXPORTS
+  USERS
+  RECORDINGS
+}
+
+enum ImportStatus {
+  PREVIEWED
+  COMMITTED
+  ROLLED_BACK
+  FAILED
+}
+
+// ───────────────────── Platform (not tenant-scoped) ─────────────────────
+
+model Plan {
+  id               String         @id @default(cuid())
+  code             String         @unique
+  name             String
+  priceInrPaise    Int?
+  maxRecordings    Int?
+  maxUsers         Int?
+  maxStorageBytes  BigInt?
+  features         Json           @default("{}")
+  isPublic         Boolean        @default(true)
+  isActive         Boolean        @default(true)
+  sortOrder        Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  organizations    Organization[]
+  subscriptions    Subscription[]
+
+  @@map("plans")
+}
+
+model Organization {
+  id           String     @id @default(cuid())
+  legalName    String
+  displayName  String
+  slug         String     @unique
+  status       OrgStatus  @default(TRIAL)
+  planId       String?
+  plan         Plan?      @relation(fields: [planId], references: [id])
+  email        String?
+  phone        String?
+  address      String?
+  gstin        String?
+  country      String     @default("IN")
+  logoUrl      String?
+  brandColor   String?    @default("#7c3aed")
+  settings     Json       @default("{}")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  memberships  Membership[]
+
+  @@map("organizations")
+}
+
+model User {
+  id               String       @id @default(cuid())
+  email            String       @unique
+  name             String
+  passwordHash     String?
+  status           UserStatus   @default(ACTIVE)
+  isPlatformAdmin  Boolean      @default(false)
+  mfaEnabled       Boolean      @default(false)
+  mfaSecretEnc     String?
+  mfaPendingSecretEnc String?
+  mfaRecoveryHashes String[]    @default([])
+  failedLogins     Int          @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  passwordChangedAt DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  memberships      Membership[]
+  sessions         Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique
+  csrfHash      String
+  activeOrgId   String?
+  mfaVerified   Boolean   @default(false)
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model BreakGlassGrant {
+  id             String    @id @default(cuid())
+  adminUserId    String
+  organizationId String
+  reason         String
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([adminUserId, organizationId])
+  @@map("break_glass_grants")
+}
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  gateway     String
+  eventId     String
+  type        String
+  payload     Json
+  processedAt DateTime?
+  error       String?
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@unique([gateway, eventId])
+  @@map("webhook_events")
+}
+
+// ───────────────────── Tenant-scoped ─────────────────────
+
+model Membership {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role               Role
+  status             MembershipStatus @default(ACTIVE)
+  /// configured authority to approve ownership (rights managers)
+  canApproveOwnership Boolean         @default(false)
+  inviteTokenHash    String?          @unique
+  inviteExpiresAt    DateTime?
+  invitedAt          DateTime?
+  invitedById        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  assignments        RecordAssignment[]
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+/// Viewer/Artist members only see explicitly assigned records.
+model RecordAssignment {
+  id             String     @id @default(cuid())
+  organizationId String
+  membershipId   String
+  membership     Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  assetType      AssetType
+  assetId        String
+  createdAt      DateTime   @default(now())
+
+  @@unique([membershipId, assetType, assetId])
+  @@index([organizationId])
+  @@map("record_assignments")
+}
+
+model Party {
+  id             String      @id @default(cuid())
+  organizationId String
+  legalName      String
+  stageName      String?
+  types          PartyType[]
+  email          String?
+  phone          String?
+  address        String?
+  identifiers    Json        @default("{}")
+  notes          String?
+  archivedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  contributions    Contribution[]
+  rightsClaims     RightsClaim[]
+  transfersFrom    RightsTransfer[] @relation("TransferFrom")
+  transfersTo      RightsTransfer[] @relation("TransferTo")
+  licenses         License[]
+  agreementParties AgreementParty[]
+
+  @@index([organizationId, legalName])
+  @@map("parties")
+}
+
+model MusicalWork {
+  id             String    @id @default(cuid())
+  organizationId String
+  title          String
+  aliases        String[]  @default([])
+  language       String?
+  genre          String?
+  iswc           String?
+  lyricsExcerpt  String?
+  notes          String?
+  archivedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  recordings     Recording[]
+  contributions  Contribution[]
+  rightsClaims   RightsClaim[]
+  transfers      RightsTransfer[]
+  licenses       License[]
+  agreementAssets AgreementAsset[]
+  registrations  Registration[]
+  disputes       Dispute[]
+  packages       VerificationPackage[]
+
+  @@index([organizationId, title])
+  @@map("musical_works")
+}
+
+model Recording {
+  id             String    @id @default(cuid())
+  organizationId String
+  workId         String?
+  work           MusicalWork? @relation(fields: [workId], references: [id], onDelete: SetNull)
+  title          String
+  version        String?
+  isrc           String?
+  durationSec    Int?
+  recordingDate  DateTime?
+  language       String?
+  studioName     String?
+  notes          String?
+  archivedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  releaseTracks  ReleaseTrack[]
+  contributions  Contribution[]
+  rightsClaims   RightsClaim[]
+  transfers      RightsTransfer[]
+  licenses       License[]
+  agreementAssets AgreementAsset[]
+  registrations  Registration[]
+  disputes       Dispute[]
+  packages       VerificationPackage[]
+
+  @@unique([organizationId, isrc])
+  @@index([organizationId, title])
+  @@map("recordings")
+}
+
+model Release {
+  id             String      @id @default(cuid())
+  organizationId String
+  title          String
+  type           ReleaseType @default(SINGLE)
+  upc            String?
+  releaseDate    DateTime?
+  labelName      String?
+  notes          String?
+  archivedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  tracks         ReleaseTrack[]
+
+  @@unique([organizationId, upc])
+  @@index([organizationId, title])
+  @@map("releases")
+}
+
+model ReleaseTrack {
+  id             String    @id @default(cuid())
+  organizationId String
+  releaseId      String
+  release        Release   @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  recordingId    String
+  recording      Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  discNo         Int       @default(1)
+  trackNo        Int
+
+  @@unique([releaseId, discNo, trackNo])
+  @@unique([releaseId, recordingId])
+  @@index([organizationId])
+  @@map("release_tracks")
+}
+
+model Contribution {
+  id              String          @id @default(cuid())
+  organizationId  String
+  partyId         String
+  party           Party           @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  workId          String?
+  work            MusicalWork?    @relation(fields: [workId], references: [id], onDelete: Cascade)
+  recordingId     String?
+  recording       Recording?      @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  role            ContributorRole
+  creditOrder     Int             @default(1)
+  createdAt       DateTime        @default(now())
+
+  @@index([organizationId])
+  @@index([workId])
+  @@index([recordingId])
+  @@map("contributions")
+}
+
+model RightsClaim {
+  id             String      @id @default(cuid())
+  organizationId String
+  assetType      AssetType
+  workId         String?
+  work           MusicalWork? @relation(fields: [workId], references: [id], onDelete: Cascade)
+  recordingId    String?
+  recording      Recording?  @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  partyId        String
+  party          Party       @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  rightType      RightType
+  sharePercent   Decimal     @db.Decimal(7, 4)
+  /// ISO 3166 alpha-2 codes; ["WW"] = worldwide
+  territories    String[]    @default(["WW"])
+  startDate      DateTime?
+  endDate        DateTime?
+  status         ClaimStatus @default(ASSERTED)
+  basis          String?
+  agreementId    String?
+  createdById    String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([organizationId, assetType])
+  @@index([workId])
+  @@index([recordingId])
+  @@map("rights_claims")
+}
+
+model RightsTransfer {
+  id             String     @id @default(cuid())
+  organizationId String
+  assetType      AssetType
+  workId         String?
+  work           MusicalWork? @relation(fields: [workId], references: [id], onDelete: Cascade)
+  recordingId    String?
+  recording      Recording? @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  fromPartyId    String
+  fromParty      Party      @relation("TransferFrom", fields: [fromPartyId], references: [id], onDelete: Restrict)
+  toPartyId      String
+  toParty        Party      @relation("TransferTo", fields: [toPartyId], references: [id], onDelete: Restrict)
+  rightType      RightType
+  sharePercent   Decimal?   @db.Decimal(7, 4)
+  scope          String?
+  territories    String[]   @default(["WW"])
+  agreementId    String?
+  agreement      Agreement? @relation(fields: [agreementId], references: [id], onDelete: SetNull)
+  effectiveDate  DateTime?
+  endDate        DateTime?
+  createdById    String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([organizationId])
+  @@map("rights_transfers")
+}
+
+model License {
+  id              String     @id @default(cuid())
+  organizationId  String
+  assetType       AssetType
+  workId          String?
+  work            MusicalWork? @relation(fields: [workId], references: [id], onDelete: Cascade)
+  recordingId     String?
+  recording       Recording? @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  licenseePartyId String?
+  licensee        Party?     @relation(fields: [licenseePartyId], references: [id], onDelete: SetNull)
+  licenseeName    String
+  territories     String[]   @default(["WW"])
+  exclusive       Boolean    @default(false)
+  permittedUses   String[]   @default([])
+  startDate       DateTime?
+  endDate         DateTime?
+  feeNote         String?
+  agreementId     String?
+  agreement       Agreement? @relation(fields: [agreementId], references: [id], onDelete: SetNull)
+  createdById     String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([organizationId, endDate])
+  @@map("licenses")
+}
+
+model DocumentTemplate {
+  id             String         @id @default(cuid())
+  /// null = platform-provided starter template visible to every tenant
+  organizationId String?
+  kind           TemplateKind
+  name           String
+  language       String         @default("en")
+  version        Int            @default(1)
+  body           String
+  variables      Json           @default("[]")
+  status         DocumentStatus @default(DRAFT)
+  isStarter      Boolean        @default(false)
+  reviewedById   String?
+  approvedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  agreements     Agreement[]
+
+  @@index([organizationId, kind])
+  @@map("document_templates")
+}
+
+model Agreement {
+  id               String         @id @default(cuid())
+  organizationId   String
+  type             AgreementType
+  title            String
+  status           DocumentStatus @default(DRAFT)
+  templateId       String?
+  template         DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateVersion  Int?
+  languages        String[]       @default(["en"])
+  consideration    Json           @default("{}")
+  clauses          Json           @default("{}")
+  territories      String[]       @default(["WW"])
+  effectiveDate    DateTime?
+  executionDate    DateTime?
+  expiryDate       DateTime?
+  /// frozen Annexure-A song list captured when the agreement is executed
+  annexureSnapshot Json?
+  lockedAt         DateTime?
+  signatureProvider String?
+  signatureRef     String?
+  createdById      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  parties          AgreementParty[]
+  assets           AgreementAsset[]
+  transfers        RightsTransfer[]
+  licenses         License[]
+
+  @@index([organizationId, status])
+  @@map("agreements")
+}
+
+model AgreementParty {
+  id             String    @id @default(cuid())
+  organizationId String
+  agreementId    String
+  agreement      Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  partyId        String
+  party          Party     @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  role           String
+  signatoryName  String?
+  signedAt       DateTime?
+
+  @@unique([agreementId, partyId, role])
+  @@index([organizationId])
+  @@map("agreement_parties")
+}
+
+model AgreementAsset {
+  id             String       @id @default(cuid())
+  organizationId String
+  agreementId    String
+  agreement      Agreement    @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  workId         String?
+  work           MusicalWork? @relation(fields: [workId], references: [id], onDelete: Restrict)
+  recordingId    String?
+  recording      Recording?   @relation(fields: [recordingId], references: [id], onDelete: Restrict)
+  sortOrder      Int          @default(0)
+
+  @@index([organizationId])
+  @@index([agreementId])
+  @@map("agreement_assets")
+}
+
+model Document {
+  id               String           @id @default(cuid())
+  organizationId   String
+  ownerType        OwnerType
+  ownerId          String
+  title            String
+  category         DocumentCategory @default(EVIDENCE)
+  status           DocumentStatus   @default(DRAFT)
+  currentVersionId String?
+  signatoryName    String?
+  signedDate       DateTime?
+  expiresAt        DateTime?
+  notes            String?
+  uploadedById     String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  versions         DocumentVersion[]
+
+  @@index([organizationId, ownerType, ownerId])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id             String     @id @default(cuid())
+  organizationId String
+  documentId     String
+  document       Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versionNo      Int
+  storageKey     String
+  filename       String
+  mime           String
+  sizeBytes      BigInt
+  sha256         String
+  scanStatus     ScanStatus @default(PENDING)
+  isGenerated    Boolean    @default(false)
+  uploadedById   String?
+  createdAt      DateTime   @default(now())
+
+  @@unique([documentId, versionNo])
+  @@index([organizationId])
+  @@map("document_versions")
+}
+
+model Registration {
+  id               String             @id @default(cuid())
+  organizationId   String
+  assetType        AssetType
+  workId           String?
+  work             MusicalWork?       @relation(fields: [workId], references: [id], onDelete: Cascade)
+  recordingId      String?
+  recording        Recording?         @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  jurisdiction     String             @default("IN")
+  registry         String             @default("Copyright Office, India")
+  category         String?
+  applicationNo    String?
+  diaryNo          String?
+  registrationNo   String?
+  filedAt          DateTime?
+  registeredAt     DateTime?
+  status           RegistrationStatus @default(PLANNED)
+  nextDeadline     DateTime?
+  objectionNote    String?
+  notes            String?
+  createdById      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([organizationId, status])
+  @@map("registrations")
+}
+
+model Dispute {
+  id             String        @id @default(cuid())
+  organizationId String
+  assetType      AssetType
+  workId         String?
+  work           MusicalWork?  @relation(fields: [workId], references: [id], onDelete: Cascade)
+  recordingId    String?
+  recording      Recording?    @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  counterparty   String
+  platform       String
+  caseNo         String?
+  claimType      String?
+  contentUrl     String?
+  status         DisputeStatus @default(OPEN)
+  deadline       DateTime?
+  resolution     String?
+  openedAt       DateTime      @default(now())
+  resolvedAt     DateTime?
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  events         DisputeEvent[]
+
+  @@index([organizationId, status])
+  @@map("disputes")
+}
+
+model DisputeEvent {
+  id             String           @id @default(cuid())
+  organizationId String
+  disputeId      String
+  dispute        Dispute          @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  type           DisputeEventType
+  body           String
+  occurredAt     DateTime         @default(now())
+  dueAt          DateTime?
+  documentId     String?
+  actorId        String?
+  createdAt      DateTime         @default(now())
+
+  @@index([organizationId, disputeId])
+  @@map("dispute_events")
+}
+
+model VerificationPackage {
+  id             String             @id @default(cuid())
+  organizationId String
+  assetType      AssetType
+  workId         String?
+  work           MusicalWork?       @relation(fields: [workId], references: [id], onDelete: Restrict)
+  recordingId    String?
+  recording      Recording?         @relation(fields: [recordingId], references: [id], onDelete: Restrict)
+  status         VerificationStatus
+  manifest       Json
+  warnings       Json               @default("[]")
+  storageKey     String?
+  pdfStorageKey  String?
+  sha256         String?
+  idempotencyKey String?
+  generatedById  String?
+  generatedAt    DateTime           @default(now())
+  shareLinks     ShareLink[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId])
+  @@map("verification_packages")
+}
+
+model ShareLink {
+  id             String              @id @default(cuid())
+  organizationId String
+  packageId      String
+  package        VerificationPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  tokenHash      String              @unique
+  label          String?
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  watermark      String?
+  maxViews       Int?
+  viewCount      Int                 @default(0)
+  createdById    String?
+  createdAt      DateTime            @default(now())
+  accesses       ShareLinkAccess[]
+
+  @@index([organizationId])
+  @@map("share_links")
+}
+
+model ShareLinkAccess {
+  id             String    @id @default(cuid())
+  organizationId String
+  shareLinkId    String
+  shareLink      ShareLink @relation(fields: [shareLinkId], references: [id], onDelete: Cascade)
+  ip             String?
+  userAgent      String?
+  action         String    @default("VIEW")
+  accessedAt     DateTime  @default(now())
+
+  @@index([organizationId, shareLinkId])
+  @@map("share_link_accesses")
+}
+
+/// Append-only. UPDATE/DELETE are rejected by a database trigger.
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  actorUserId    String?
+  actorEmail     String?
+  action         String
+  entityType     String
+  entityId       String?
+  summary        Json     @default("{}")
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String?
+  type           String
+  title          String
+  body           String?
+  entityType     String?
+  entityId       String?
+  dedupeKey      String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([organizationId, dedupeKey])
+  @@index([organizationId, userId, readAt])
+  @@map("notifications")
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  organizationId   String             @unique
+  planId           String
+  plan             Plan               @relation(fields: [planId], references: [id])
+  status           SubscriptionStatus @default(TRIALING)
+  gateway          String?
+  gatewayRef       String?
+  currentPeriodEnd DateTime?
+  trialEndsAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String
+  amountPaise    Int
+  taxPaise       Int      @default(0)
+  currency       String   @default("INR")
+  status         String   @default("ISSUED")
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  gatewayRef     String?
+  issuedAt       DateTime @default(now())
+
+  @@unique([organizationId, number])
+  @@map("invoices")
+}
+
+model UsageRecord {
+  id             String      @id @default(cuid())
+  organizationId String
+  metric         UsageMetric
+  quantity       BigInt
+  refId          String?
+  createdAt      DateTime    @default(now())
+
+  @@index([organizationId, metric, createdAt])
+  @@map("usage_records")
+}
+
+model ImportBatch {
+  id             String       @id @default(cuid())
+  organizationId String
+  kind           String
+  filename       String
+  status         ImportStatus @default(PREVIEWED)
+  mapping        Json         @default("{}")
+  rows           Json         @default("[]")
+  summary        Json         @default("{}")
+  errors         Json         @default("[]")
+  createdIds     Json         @default("{}")
+  createdById    String?
+  committedAt    DateTime?
+  rolledBackAt   DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("import_batches")
+}

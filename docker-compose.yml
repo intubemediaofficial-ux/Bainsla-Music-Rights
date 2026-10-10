@@ -1,0 +1,33 @@
+# Local development dependencies + full stack.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mrc
+      POSTGRES_PASSWORD: mrc
+      POSTGRES_DB: mrc_dev
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data, ./infra/postgres-init.sql:/docker-entrypoint-initdb.d/10-app-role.sql:ro]
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    profiles: [full]
+    environment:
+      DATABASE_URL: postgresql://mrc_app_login:mrc_app@postgres:5432/mrc_dev
+      MIGRATE_DATABASE_URL: postgresql://mrc:mrc@postgres:5432/mrc_dev
+      REDIS_URL: redis://redis:6379
+      API_HOST: 0.0.0.0
+      APP_URL: http://localhost:3280
+    depends_on: [postgres, redis]
+    ports: ["127.0.0.1:3281:3281"]
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    profiles: [full]
+    environment:
+      API_INTERNAL_URL: http://api:3281
+    depends_on: [api]
+    ports: ["127.0.0.1:3280:3280"]
+volumes:
+  pgdata:
