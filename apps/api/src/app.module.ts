@@ -2,6 +2,14 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
+import { PartiesController } from './catalog/parties.controller.js';
+import { WorksController } from './catalog/works.controller.js';
+import { RecordingsController } from './catalog/recordings.controller.js';
+import { ReleasesController } from './catalog/releases.controller.js';
+import { RightsController } from './catalog/rights.controller.js';
+import { ContributionsController } from './catalog/contributions.controller.js';
+import { LicensesController } from './catalog/licenses.controller.js';
+import { ImportsController } from './catalog/imports.controller.js';
 import { PrismaModule } from './prisma/prisma.service.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AuthService } from './auth/auth.service.js';
@@ -32,6 +40,7 @@ import { NotificationsController } from './notifications/notifications.controlle
     PrismaModule,
   ],
   controllers: [
+    PartiesController, WorksController, RecordingsController, ReleasesController, RightsController, ContributionsController, LicensesController, ImportsController,
     AuthController,
     AuditController,
     OrganizationsController,
