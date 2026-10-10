@@ -3,11 +3,24 @@ import { ApiTags } from '@nestjs/swagger';
 import { Auth, RequirePermission } from '../auth/context.js';
 import type { OrgContext } from '../auth/context.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificationsService } from './notifications.service.js';
 
 @ApiTags('notifications')
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
+
+  /** Re-run alert checks for the active organization now (the scheduler also runs hourly). */
+  @Post('scan')
+  @HttpCode(200)
+  @RequirePermission('notifications.read')
+  async scan(@Auth() auth: OrgContext) {
+    const created = await this.prisma.tenant(auth.orgId, (tx) => this.notifications.scan(tx, auth.orgId));
+    return { created };
+  }
 
   @Get()
   @RequirePermission('notifications.read')

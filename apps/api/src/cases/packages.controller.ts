@@ -1,4 +1,5 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import { meter } from '../billing/usage.js';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
@@ -79,6 +80,7 @@ export class PackagesController {
         },
         select: { id: true, status: true, warnings: true, sha256: true },
       });
+      if (g.pdfStorageKey) await meter(tx, auth.orgId, 'PDF_JOBS', 1, p.id);
       await this.audit.log(tx, auth, { action: 'package.generate', entityType: 'verification_package', entityId: p.id, after: { status: p.status, sha256: p.sha256, asset: ref, bytes: g.zipBytes } });
       return { ...p, reused: false };
     });

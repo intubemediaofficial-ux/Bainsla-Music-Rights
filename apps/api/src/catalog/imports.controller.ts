@@ -1,4 +1,5 @@
 /// <reference types="multer" />
+import { assertRecordingQuota } from '../billing/usage.js';
 import { BadRequestException, Controller, Get, Header, Param, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
@@ -265,6 +266,7 @@ export class ImportsController {
         }
         imported++;
       }
+      await assertRecordingQuota(tx, auth.orgId, 0);
       const summary = { ...(b.summary as object), imported, skipped, created: Object.fromEntries(Object.entries(created).map(([k, v]) => [k, v.length])) };
       await tx.importBatch.update({ where: { id }, data: { status: 'COMMITTED', committedAt: new Date(), createdIds: created, summary } });
       await this.audit.log(tx, auth, { action: 'import.committed', entityType: 'import', entityId: id, after: summary });
