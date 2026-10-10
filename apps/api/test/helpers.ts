@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import argon2 from 'argon2';
+import { hashPassword } from '../src/common/password.js';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/bootstrap.js';
@@ -22,7 +22,7 @@ export type Tenant = { orgId: string; users: Record<string, string>; recordingId
 /** Creates an isolated organization with one user per role and one synthetic song. */
 export async function createTenant(prisma: PrismaService, tag: string, roles: Role[]): Promise<Tenant> {
   const suffix = `${tag.toLowerCase()}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  const hash = await argon2.hash(PASSWORD, { type: argon2.argon2id });
+  const hash = await hashPassword(PASSWORD);
   return prisma.system(async (tx) => {
     const org = await tx.organization.create({ data: { slug: `t-${suffix}`, legalName: `Tenant ${suffix}`, displayName: `Tenant ${tag}`, status: 'ACTIVE' } });
     const users: Record<string, string> = {};
@@ -41,7 +41,7 @@ export async function createTenant(prisma: PrismaService, tag: string, roles: Ro
 
 export async function createPlatformAdmin(prisma: PrismaService) {
   const email = `padmin-${Date.now().toString(36)}@test.local`;
-  const hash = await argon2.hash(PASSWORD, { type: argon2.argon2id });
+  const hash = await hashPassword(PASSWORD);
   await prisma.system((tx) => tx.user.create({ data: { email, name: 'Platform Admin', passwordHash: hash, isPlatformAdmin: true } }));
   return email;
 }

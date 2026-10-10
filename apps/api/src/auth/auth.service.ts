@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
-import argon2 from 'argon2';
+import { hashPassword, verifyPassword } from '../common/password.js';
 import type { Response } from 'express';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -31,7 +31,7 @@ export class AuthService {
   ) {}
 
   hashPassword(pw: string) {
-    return argon2.hash(pw, { type: argon2.argon2id });
+    return hashPassword(pw);
   }
 
   private setCookies(res: Response, token: string, csrf: string, expires: Date) {
@@ -79,13 +79,13 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     const now = new Date();
     if (!user || !user.passwordHash || user.status !== 'ACTIVE') {
-      await argon2.verify(DUMMY_HASH, password).catch(() => false);
+      await verifyPassword(DUMMY_HASH, password);
       throw new UnauthorizedException('Invalid email or password');
     }
     if (user.lockedUntil && user.lockedUntil > now) {
       throw new ForbiddenException('Account temporarily locked after repeated failures. Try again later.');
     }
-    const ok = await argon2.verify(user.passwordHash, password).catch(() => false);
+    const ok = await verifyPassword(user.passwordHash, password);
     if (!ok) {
       const failures = user.failedLogins + 1;
       const lock = failures >= config.loginMaxFailures;
@@ -167,7 +167,7 @@ export class AuthService {
   async disableMfa(auth: AuthContext, password: string, code: string) {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: auth.userId } });
     if (!user.mfaEnabled || !user.mfaSecretEnc || !user.passwordHash) throw new BadRequestException('MFA is not enabled');
-    const ok = (await argon2.verify(user.passwordHash, password)) && (await verifyTotp(decrypt(user.mfaSecretEnc), code));
+    const ok = (await verifyPassword(user.passwordHash, password)) && (await verifyTotp(decrypt(user.mfaSecretEnc), code));
     if (!ok) throw new UnauthorizedException('Invalid password or code');
     await this.prisma.user.update({
       where: { id: user.id },
@@ -179,7 +179,7 @@ export class AuthService {
 
   async changePassword(auth: AuthContext, current: string, next: string) {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: auth.userId } });
-    if (!user.passwordHash || !(await argon2.verify(user.passwordHash, current))) {
+    if (!user.passwordHash || !(await verifyPassword(user.passwordHash, current))) {
       throw new UnauthorizedException('Current password is incorrect');
     }
     await this.prisma.$transaction([

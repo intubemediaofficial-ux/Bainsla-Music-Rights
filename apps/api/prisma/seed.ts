@@ -3,7 +3,7 @@
  * Idempotent: safe to run multiple times.
  */
 import { PrismaClient, Role } from '@prisma/client';
-import argon2 from 'argon2';
+import { hashPassword } from '../src/common/password.js';
 
 const prisma = new PrismaClient({ datasourceUrl: process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL });
 
@@ -55,8 +55,8 @@ async function main() {
     for (const p of PLANS) {
       await tx.plan.upsert({ where: { code: p.code }, update: p, create: p });
     }
-    const adminHash = await argon2.hash(ADMIN_PASSWORD, { type: argon2.argon2id });
-    const demoHash = await argon2.hash(DEMO_PASSWORD, { type: argon2.argon2id });
+    const adminHash = await hashPassword(ADMIN_PASSWORD);
+    const demoHash = await hashPassword(DEMO_PASSWORD);
     await tx.user.upsert({
       where: { email: ADMIN_EMAIL },
       update: { isPlatformAdmin: true },
