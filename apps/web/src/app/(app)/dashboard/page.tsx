@@ -13,24 +13,24 @@ import { useSession } from "@/lib/session";
 type Summary = {
   kpis: Record<string, number>;
   missingEvidence: { id: string; title: string; isrc: string | null }[];
-  conflicts: { id: string; rightType: string; sharePercent: string; work?: { title: string } | null; recording?: { title: string } | null; party: { legalName: string } }[];
+  conflicts: { id: string; rightType: string; sharePercent: string; work?: { id: string; title: string } | null; recording?: { id: string; title: string } | null; party: { legalName: string } }[];
   expiring: { kind: string; id: string; title: string; date: string }[];
   activity: { id: string; action: string; entityType: string; actorEmail: string | null; createdAt: string }[];
 };
 
 const KPI = [
-  { key: "works", label: "Musical works", icon: Music, tone: "violet" },
-  { key: "recordings", label: "Recordings", icon: Disc3, tone: "sky" },
-  { key: "releases", label: "Releases", icon: Album, tone: "indigo" },
-  { key: "parties", label: "Parties", icon: Users, tone: "slate" },
-  { key: "incompleteDocumentation", label: "Missing evidence", icon: FileWarning, tone: "amber" },
-  { key: "reviewedClaims", label: "Reviewed claims", icon: ShieldCheck, tone: "emerald" },
-  { key: "documentedClaims", label: "Documented claims", icon: FileCheck2, tone: "emerald" },
-  { key: "conflicts", label: "Rights conflicts", icon: AlertTriangle, tone: "rose" },
-  { key: "openDisputes", label: "Open disputes", icon: Swords, tone: "rose" },
-  { key: "expiringAgreements", label: "Expiring in 60d", icon: CalendarClock, tone: "amber" },
-  { key: "pendingRegistrations", label: "Pending registrations", icon: Landmark, tone: "sky" },
-  { key: "unsignedAgreements", label: "Unsigned agreements", icon: FileSignature, tone: "amber" },
+  { key: "works", href: "/works", label: "Musical works", icon: Music, tone: "violet" },
+  { key: "recordings", href: "/recordings", label: "Recordings", icon: Disc3, tone: "sky" },
+  { key: "releases", href: "/releases", label: "Releases", icon: Album, tone: "indigo" },
+  { key: "parties", href: "/parties", label: "Parties", icon: Users, tone: "slate" },
+  { key: "incompleteDocumentation", href: "/recordings", label: "Missing evidence", icon: FileWarning, tone: "amber" },
+  { key: "reviewedClaims", href: "/rights", label: "Reviewed claims", icon: ShieldCheck, tone: "emerald" },
+  { key: "documentedClaims", href: "/rights", label: "Documented claims", icon: FileCheck2, tone: "emerald" },
+  { key: "conflicts", href: "/rights?tab=conflicts", label: "Rights conflicts", icon: AlertTriangle, tone: "rose" },
+  { key: "openDisputes", href: "/disputes", label: "Open disputes", icon: Swords, tone: "rose" },
+  { key: "expiringAgreements", href: "/licenses?state=expiring", label: "Expiring in 60d", icon: CalendarClock, tone: "amber" },
+  { key: "pendingRegistrations", href: "/registrations", label: "Pending registrations", icon: Landmark, tone: "sky" },
+  { key: "unsignedAgreements", href: "/agreements", label: "Unsigned agreements", icon: FileSignature, tone: "amber" },
 ] as const;
 
 const TONE: Record<string, string> = {
@@ -78,7 +78,8 @@ export default function DashboardPage() {
       {err && <p className="mb-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{err}</p>}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {KPI.map((k) => (
-          <Card key={k.key} className="gap-0 py-0 transition hover:shadow-md">
+          <Link key={k.key} href={k.href}>
+          <Card className="h-full gap-0 py-0 transition hover:-translate-y-0.5 hover:shadow-md">
             <CardContent className="p-4">
               <div className={`mb-3 grid size-9 place-items-center rounded-lg ${TONE[k.tone]}`}>
                 <k.icon className="size-[18px]" />
@@ -87,6 +88,7 @@ export default function DashboardPage() {
               <div className="mt-0.5 text-xs text-muted-foreground">{k.label}</div>
             </CardContent>
           </Card>
+          </Link>
         ))}
       </div>
 
@@ -106,7 +108,7 @@ export default function DashboardPage() {
               <ul className="divide-y">
                 {s.missingEvidence.map((r) => (
                   <li key={r.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="truncate font-medium">{r.title}</span>
+                    <Link href={`/recordings/${r.id}`} className="truncate font-medium hover:underline">{r.title}</Link>
                     <span className="ml-4 shrink-0 font-mono text-xs text-muted-foreground">{r.isrc ?? "no ISRC"}</span>
                   </li>
                 ))}
@@ -157,7 +159,7 @@ export default function DashboardPage() {
               <ul className="divide-y">
                 {s.conflicts.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
-                    <span className="font-medium">{c.work?.title ?? c.recording?.title}</span>
+                    <Link href={c.work ? `/works/${c.work.id}` : `/recordings/${c.recording?.id}`} className="font-medium hover:underline">{c.work?.title ?? c.recording?.title}</Link>
                     <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-semibold text-rose-700">{c.rightType}</span>
                     <span className="text-muted-foreground">
                       {c.party.legalName} · {Number(c.sharePercent)}%
@@ -184,7 +186,7 @@ export default function DashboardPage() {
               <ul className="divide-y">
                 {s.expiring.map((x) => (
                   <li key={x.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="truncate">{x.title}</span>
+                    <Link href={x.kind === "license" ? "/licenses?state=expiring" : "/agreements"} className="truncate hover:underline">{x.title}</Link>
                     <span className="ml-3 shrink-0 text-xs text-muted-foreground">{fmtDate(x.date)}</span>
                   </li>
                 ))}
