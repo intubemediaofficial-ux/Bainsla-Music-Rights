@@ -10,6 +10,13 @@ import { RightsController } from './catalog/rights.controller.js';
 import { ContributionsController } from './catalog/contributions.controller.js';
 import { LicensesController } from './catalog/licenses.controller.js';
 import { ImportsController } from './catalog/imports.controller.js';
+import { DocumentsController } from './documents/documents.controller.js';
+import { TemplatesController } from './documents/templates.controller.js';
+import { AgreementsController } from './documents/agreements.controller.js';
+import { DocumentsService } from './documents/documents.service.js';
+import { StorageService } from './documents/storage.service.js';
+import { RenderService } from './documents/render.service.js';
+import { StarterTemplatesService } from './documents/starter.service.js';
 import { PrismaModule } from './prisma/prisma.service.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AuthService } from './auth/auth.service.js';
@@ -41,6 +48,7 @@ import { NotificationsController } from './notifications/notifications.controlle
   ],
   controllers: [
     PartiesController, WorksController, RecordingsController, ReleasesController, RightsController, ContributionsController, LicensesController, ImportsController,
+    DocumentsController, TemplatesController, AgreementsController,
     AuthController,
     AuditController,
     OrganizationsController,
@@ -52,6 +60,7 @@ import { NotificationsController } from './notifications/notifications.controlle
     NotificationsController,
   ],
   providers: [
+    StorageService, DocumentsService, RenderService, StarterTemplatesService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     AuditService,

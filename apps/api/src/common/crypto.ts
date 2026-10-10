@@ -15,7 +15,7 @@ export function safeEqualHex(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-function key(): Buffer {
+export function key(): Buffer {
   const raw = config.encryptionKey;
   if (!raw) {
     if (config.env === 'production') throw new Error('APP_ENCRYPTION_KEY is required in production');

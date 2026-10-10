@@ -27,9 +27,9 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Legal",
     items: [
-      { href: "/agreements", label: "Agreements", icon: FileSignature, phase: 3, perm: "documents.read" },
-      { href: "/documents", label: "Documents", icon: FileText, phase: 3, perm: "documents.read" },
-      { href: "/templates", label: "Templates", icon: LayoutTemplate, phase: 3, perm: "documents.read" },
+      { href: "/agreements", label: "Agreements", icon: FileSignature, perm: "documents.read" },
+      { href: "/documents", label: "Documents", icon: FileText, perm: "documents.read" },
+      { href: "/templates", label: "Templates", icon: LayoutTemplate, perm: "documents.read" },
     ],
   },
   {

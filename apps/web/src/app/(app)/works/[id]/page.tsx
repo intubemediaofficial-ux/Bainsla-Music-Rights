@@ -12,6 +12,7 @@ import { RecordingFields, recordingPayload, WorkFields, workPayload } from "@/co
 import { api, errMsg } from "@/lib/api";
 import { AssetRights, Credit, fmtDuration, License } from "@/lib/catalog";
 import { useSession } from "@/lib/session";
+import { DocumentsCard } from "@/components/documents";
 
 type Work = AssetRights & {
   id: string; title: string; aliases: string[]; language: string | null; genre: string | null; iswc: string | null; lyricsExcerpt: string | null; notes: string | null;
@@ -116,6 +117,7 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
         </div>
         <RightsCard assetType="WORK" assetId={id} rights={w} onChange={reload} />
         <LicensesCard asset={{ type: "WORK", id }} licenses={w.licenses} onChange={reload} />
+        <DocumentsCard ownerType="WORK" ownerId={id} />
       </div>
 
       <FormDialog open={edit} onOpenChange={setEdit} title="Edit work" onSubmit={save} busy={busy} wide>

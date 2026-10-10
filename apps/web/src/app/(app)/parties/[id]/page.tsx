@@ -11,6 +11,7 @@ import { PartyFields, partyPayload } from "@/components/catalog-forms";
 import { api, errMsg, fmtDate } from "@/lib/api";
 import { assetHref, Claim, CLAIM_STATUS, CREDIT_ROLE, pct, RIGHT_LABEL, titleCase } from "@/lib/catalog";
 import { useSession } from "@/lib/session";
+import { DocumentsCard } from "@/components/documents";
 
 type Party = {
   id: string; legalName: string; stageName: string | null; types: string[]; email: string | null; phone: string | null; address: string | null; notes: string | null; archivedAt: string | null;
@@ -112,6 +113,7 @@ export default function PartyPage({ params }: { params: Promise<{ id: string }> 
             )}
           </SectionCard>
         </div>
+        <DocumentsCard ownerType="PARTY" ownerId={id} />
       </div>
       <FormDialog open={edit} onOpenChange={setEdit} title="Edit party" onSubmit={save} busy={busy} wide>
         <PartyFields p={p} />
