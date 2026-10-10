@@ -25,5 +25,5 @@ export async function assetRights(tx: Tx, orgId: string, assetType: AssetType, a
     }),
   ]);
   const validation = validateClaims(claims.map((c) => ({ ...c, sharePercent: dec(c.sharePercent) })));
-  return { rightsClaims: claims, transfers, validation, hasConflicts: validation.some((v) => v.issues.length > 0) };
+  return { rightsClaims: claims, transfers, validation, hasConflicts: validation.some((v) => v.issues.some((i) => i.kind === 'OVER_100')) };
 }

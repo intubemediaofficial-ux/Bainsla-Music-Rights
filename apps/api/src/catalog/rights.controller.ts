@@ -156,7 +156,7 @@ export class RightsController {
       if (dto.startDate && dto.endDate && dto.startDate > dto.endDate) throw new BadRequestException('Start date must be before end date');
       const draft = { id: 'new', partyId: dto.partyId, rightType: dto.rightType, sharePercent: dto.sharePercent, territories: dto.territories ?? ['WW'], startDate: dto.startDate ?? null, endDate: dto.endDate ?? null, status: 'ASSERTED' };
       const result = validateClaims([...(await loadClaimLikes(tx, auth.orgId, dto.assetType, dto.assetId)), draft]);
-      const issues = result.flatMap((r) => r.issues).filter((i) => i.claimIds.includes('new'));
+      const issues = result.flatMap((r) => r.issues).filter((i) => i.kind === 'OVER_100' && i.claimIds.includes('new'));
       if (issues.length && !dto.markDisputed) throw new ConflictException({ message: 'This claim would conflict with existing claims', issues });
       const claim = await tx.rightsClaim.create({
         data: {
@@ -188,7 +188,7 @@ export class RightsController {
         endDate: dto.endDate !== undefined ? dto.endDate : before.endDate,
       };
       if (next.startDate && next.endDate && next.startDate > next.endDate) throw new BadRequestException('Start date must be before end date');
-      const issues = validateClaims([...(await loadClaimLikes(tx, auth.orgId, assetType, assetId, id)), next]).flatMap((r) => r.issues).filter((i) => i.claimIds.includes(id));
+      const issues = validateClaims([...(await loadClaimLikes(tx, auth.orgId, assetType, assetId, id)), next]).flatMap((r) => r.issues).filter((i) => i.kind === 'OVER_100' && i.claimIds.includes(id));
       if (issues.length && !dto.markDisputed) throw new ConflictException({ message: 'This change would conflict with existing claims', issues });
       const claim = await tx.rightsClaim.update({
         where: { id },
@@ -220,7 +220,7 @@ export class RightsController {
         throw new BadRequestException('Documented needs an executed (signed) agreement or document for this asset. Unsigned drafts are not evidence.');
       }
       if (['REVIEWED', 'DOCUMENTED'].includes(dto.status)) {
-        const issues = validateClaims(await loadClaimLikes(tx, auth.orgId, assetType, assetId)).flatMap((r) => r.issues).filter((i) => i.claimIds.includes(id));
+        const issues = validateClaims(await loadClaimLikes(tx, auth.orgId, assetType, assetId)).flatMap((r) => r.issues).filter((i) => i.kind === 'OVER_100' && i.claimIds.includes(id));
         if (issues.length) throw new ConflictException({ message: 'Resolve the share conflict before approving', issues });
       }
       const claim = await tx.rightsClaim.update({
@@ -285,7 +285,17 @@ export class RightsController {
       const remaining = Math.round((have - dto.sharePercent) * 10000) / 10000;
       if (remaining > 0) await tx.rightsClaim.update({ where: { id: source.id }, data: { sharePercent: new Prisma.Decimal(remaining) } });
       else await tx.rightsClaim.update({ where: { id: source.id }, data: { status: 'REJECTED', basis: `${source.basis ?? ''} [fully transferred]`.trim() } });
-      const claim = await tx.rightsClaim.create({
+      const same = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+      const existing = (await tx.rightsClaim.findMany({
+        where: { organizationId: auth.orgId, assetType: dto.assetType, ...assetWhere(dto.assetType, dto.assetId), partyId: dto.toPartyId, rightType: dto.rightType, status: { in: ['ASSERTED', 'REVIEWED'] }, endDate: null },
+      })).find((c) => same(c.territories, territories));
+      const claim = existing
+        ? await tx.rightsClaim.update({
+            where: { id: existing.id },
+            // Increasing a share is a material change: a reviewed claim goes back to asserted.
+            data: { sharePercent: new Prisma.Decimal(Math.round((dec(existing.sharePercent) + dto.sharePercent) * 10000) / 10000), status: 'ASSERTED', reviewedById: null, reviewedAt: null },
+          })
+        : await tx.rightsClaim.create({
         data: {
           organizationId: auth.orgId, assetType: dto.assetType, ...assetWhere(dto.assetType, dto.assetId), partyId: dto.toPartyId, rightType: dto.rightType,
           sharePercent: new Prisma.Decimal(dto.sharePercent), territories, startDate: dto.effectiveDate ?? null, status: 'ASSERTED',
