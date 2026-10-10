@@ -1,0 +1,15 @@
+{
+  "name": "music-rights-cloud",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "dev:api": "npm --workspace apps/api run start:dev",
+    "dev:web": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/api run build && npm --workspace apps/web run build",
+    "test": "npm --workspace apps/api run test && npm --workspace apps/api run test:e2e",
+    "lint": "npm --workspace apps/api run typecheck && npm --workspace apps/web run lint",
+    "db:migrate": "npm --workspace apps/api run db:migrate",
+    "db:seed": "npm --workspace apps/api run db:seed"
+  }
+}

@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: mrc, POSTGRES_PASSWORD: mrc, POSTGRES_DB: mrc_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mrc" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MIGRATE_DATABASE_URL: postgresql://mrc:mrc@localhost:5432/mrc_test
+      DATABASE_URL: postgresql://mrc_app_login:mrc_app@localhost:5432/mrc_test
+      AUTH_RATE_LIMIT_MULTIPLIER: "100"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: App DB role (non-owner, RLS enforced)
+        run: PGPASSWORD=mrc psql -h localhost -U mrc -d mrc_test -f infra/postgres-init.sql
+      - run: npm --workspace apps/api run db:migrate
+      - run: npm --workspace apps/api run typecheck
+      - run: npm --workspace apps/api run lint
+      - run: npm --workspace apps/api run test
+      - run: npm --workspace apps/api run test:e2e
+      - run: npm --workspace apps/web run lint
+      - run: npm --workspace apps/web run build
