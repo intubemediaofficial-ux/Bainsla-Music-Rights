@@ -4,7 +4,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Public } from '../auth/context.js';
-import { access, constants } from 'node:fs/promises';
+import { access, constants, mkdir } from 'node:fs/promises';
 import { config } from '../config.js';
 import { RenderService } from '../documents/render.service.js';
 
@@ -23,7 +23,7 @@ export class HealthController {
   async ready(@Res({ passthrough: true }) res: Response) {
     const checks: Record<string, string> = {};
     try { await this.prisma.$queryRaw`SELECT 1`; checks.db = 'ok'; } catch { checks.db = 'fail'; }
-    try { await access(config.storageDir, constants.W_OK); checks.storage = 'ok'; } catch { checks.storage = 'fail'; }
+    try { await mkdir(config.storageDir, { recursive: true }); await access(config.storageDir, constants.W_OK); checks.storage = 'ok'; } catch { checks.storage = 'fail'; }
     checks.pdf = this.render.executable() ? 'ok' : 'missing';
     checks.malwareScanner = process.env.CLAMD_HOST ? 'configured' : 'not-configured';
     checks.billingGateway = process.env.RAZORPAY_WEBHOOK_SECRET ? 'configured' : 'not-configured';
