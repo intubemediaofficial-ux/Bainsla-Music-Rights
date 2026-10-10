@@ -35,10 +35,10 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Compliance",
     items: [
-      { href: "/registrations", label: "Registrations", icon: Landmark, phase: 4, perm: "registrations.read" },
-      { href: "/disputes", label: "Disputes", icon: Swords, phase: 4, perm: "disputes.read" },
-      { href: "/packages", label: "Verification packages", icon: PackageCheck, phase: 4, perm: "documents.read" },
-      { href: "/shares", label: "Secure shares", icon: Share2, phase: 4, perm: "shares.manage" },
+      { href: "/registrations", label: "Registrations", icon: Landmark, perm: "registrations.read" },
+      { href: "/disputes", label: "Disputes", icon: Swords, perm: "disputes.read" },
+      { href: "/packages", label: "Verification packages", icon: PackageCheck, perm: "documents.read" },
+      { href: "/shares", label: "Secure shares", icon: Share2, perm: "shares.manage" },
     ],
   },
   {

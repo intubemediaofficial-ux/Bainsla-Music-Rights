@@ -13,6 +13,7 @@ import { api, errMsg } from "@/lib/api";
 import { AssetRights, Credit, fmtDuration, License } from "@/lib/catalog";
 import { useSession } from "@/lib/session";
 import { DocumentsCard } from "@/components/documents";
+import { AssetCasesCard } from "@/components/cases";
 
 type Work = AssetRights & {
   id: string; title: string; aliases: string[]; language: string | null; genre: string | null; iswc: string | null; lyricsExcerpt: string | null; notes: string | null;
@@ -118,6 +119,7 @@ export default function WorkPage({ params }: { params: Promise<{ id: string }> }
         <RightsCard assetType="WORK" assetId={id} rights={w} onChange={reload} />
         <LicensesCard asset={{ type: "WORK", id }} licenses={w.licenses} onChange={reload} />
         <DocumentsCard ownerType="WORK" ownerId={id} />
+        <AssetCasesCard assetType="WORK" assetId={id} />
       </div>
 
       <FormDialog open={edit} onOpenChange={setEdit} title="Edit work" onSubmit={save} busy={busy} wide>

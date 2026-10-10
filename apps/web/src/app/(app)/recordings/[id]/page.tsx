@@ -12,6 +12,7 @@ import { api, errMsg, fmtDate } from "@/lib/api";
 import { AssetRights, Credit, fmtDuration, License, titleCase } from "@/lib/catalog";
 import { useSession } from "@/lib/session";
 import { DocumentsCard } from "@/components/documents";
+import { AssetCasesCard } from "@/components/cases";
 
 type Rec = AssetRights & {
   id: string; title: string; version: string | null; isrc: string | null; durationSec: number | null; recordingDate: string | null; language: string | null;
@@ -100,6 +101,7 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
         <RightsCard assetType="RECORDING" assetId={id} rights={r} onChange={reload} />
         <LicensesCard asset={{ type: "RECORDING", id }} licenses={r.licenses} onChange={reload} />
         <DocumentsCard ownerType="RECORDING" ownerId={id} />
+        <AssetCasesCard assetType="RECORDING" assetId={id} />
       </div>
       <FormDialog open={edit} onOpenChange={setEdit} title="Edit recording" onSubmit={(f) => { try { void save(f); } catch (e) { toast.error(errMsg(e)); } }} busy={busy} wide>
         <RecordingFields r={r} />

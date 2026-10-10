@@ -853,6 +853,7 @@ model ShareLink {
   packageId      String
   package        VerificationPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
   tokenHash      String              @unique
+  passwordHash   String?
   label          String?
   expiresAt      DateTime
   revokedAt      DateTime?
