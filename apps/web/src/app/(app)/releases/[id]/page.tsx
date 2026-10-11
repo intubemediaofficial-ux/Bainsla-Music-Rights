@@ -11,6 +11,7 @@ import { ReleaseFields, releasePayload } from "@/components/catalog-forms";
 import { api, errMsg, fmtDate } from "@/lib/api";
 import { fmtDuration, Page, titleCase } from "@/lib/catalog";
 import { useSession } from "@/lib/session";
+import { DocumentsCard } from "@/components/documents";
 
 type RecLite = { id: string; title: string; version: string | null; isrc: string | null; durationSec: number | null };
 type Rel = {
@@ -117,6 +118,7 @@ export default function ReleasePage({ params }: { params: Promise<{ id: string }
             </div>
           )}
         </SectionCard>
+        <DocumentsCard ownerType="RELEASE" ownerId={id} />
       </div>
       <FormDialog open={edit} onOpenChange={setEdit} title="Edit release" onSubmit={save} busy={busy} wide>
         <ReleaseFields r={r} />
