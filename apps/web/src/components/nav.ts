@@ -10,18 +10,18 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Catalog",
     items: [
-      { href: "/works", label: "Musical works", icon: Music, phase: 2, perm: "catalog.read" },
-      { href: "/recordings", label: "Recordings", icon: Disc3, phase: 2, perm: "catalog.read" },
-      { href: "/releases", label: "Releases", icon: Album, phase: 2, perm: "catalog.read" },
-      { href: "/parties", label: "Parties", icon: Users, phase: 2, perm: "catalog.read" },
-      { href: "/imports", label: "Bulk import", icon: Upload, phase: 2, perm: "catalog.import" },
+      { href: "/works", label: "Musical works", icon: Music, perm: "catalog.read" },
+      { href: "/recordings", label: "Recordings", icon: Disc3, perm: "catalog.read" },
+      { href: "/releases", label: "Releases", icon: Album, perm: "catalog.read" },
+      { href: "/parties", label: "Parties", icon: Users, perm: "catalog.read" },
+      { href: "/imports", label: "Bulk import", icon: Upload, perm: "catalog.import" },
     ],
   },
   {
     group: "Rights",
     items: [
-      { href: "/rights", label: "Rights claims", icon: Scale, phase: 2, perm: "rights.read" },
-      { href: "/licenses", label: "Licenses", icon: KeyRound, phase: 2, perm: "rights.read" },
+      { href: "/rights", label: "Rights claims", icon: Scale, perm: "rights.read" },
+      { href: "/licenses", label: "Licenses", icon: KeyRound, perm: "rights.read" },
     ],
   },
   {

@@ -60,7 +60,7 @@ export class DashboardController {
         ORDER BY r."createdAt" DESC LIMIT 8`;
       const conflicts = await tx.rightsClaim.findMany({
         where: { organizationId: org, status: 'DISPUTED' },
-        select: { id: true, rightType: true, sharePercent: true, work: { select: { title: true } }, recording: { select: { title: true } }, party: { select: { legalName: true } } },
+        select: { id: true, rightType: true, sharePercent: true, work: { select: { id: true, title: true } }, recording: { select: { id: true, title: true } }, party: { select: { legalName: true } } },
         take: 8, orderBy: { updatedAt: 'desc' },
       });
       const activity = await tx.auditLog.findMany({
