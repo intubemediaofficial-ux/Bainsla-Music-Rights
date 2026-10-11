@@ -35,6 +35,10 @@ import { DashboardController } from './dashboard/dashboard.controller.js';
 import { SearchController } from './search/search.controller.js';
 import { HealthController } from './health/health.controller.js';
 import { NotificationsController } from './notifications/notifications.controller.js';
+import { NotificationsService } from './notifications/notifications.service.js';
+import { BillingController, BillingWebhookController } from './billing/billing.controller.js';
+import { BillingService } from './billing/billing.service.js';
+import { ExportController } from './billing/export.controller.js';
 
 @Module({
   imports: [
@@ -64,9 +68,10 @@ import { NotificationsController } from './notifications/notifications.controlle
     SearchController,
     HealthController,
     NotificationsController,
+    BillingController, BillingWebhookController, ExportController,
   ],
   providers: [
-    StorageService, DocumentsService, RenderService, StarterTemplatesService, PackagesService,
+    StorageService, DocumentsService, RenderService, StarterTemplatesService, PackagesService, NotificationsService, BillingService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     AuditService,

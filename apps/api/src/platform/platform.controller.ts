@@ -8,6 +8,10 @@ import { Auth, type AuthContext, PlatformAdminOnly } from '../auth/context.js';
 import { AuthService } from '../auth/auth.service.js';
 import { randomToken, sha256 } from '../common/crypto.js';
 import { config } from '../config.js';
+import { readdir, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import { BillingService } from '../billing/billing.service.js';
+import { IsBoolean } from 'class-validator';
 
 class CreateTenantDto {
   @IsString() @MinLength(2) @MaxLength(200) legalName!: string;
@@ -20,6 +24,27 @@ class CreateTenantDto {
 class UpdateTenantDto {
   @IsOptional() @IsEnum(OrgStatus) status?: OrgStatus;
   @IsOptional() @IsString() planCode?: string;
+}
+
+class PlanDto {
+  @IsOptional() @IsString() @MaxLength(80) name?: string;
+  @IsOptional() @IsInt() @Min(0) priceInrPaise?: number | null;
+  @IsOptional() @IsInt() @Min(1) maxRecordings?: number | null;
+  @IsOptional() @IsInt() @Min(1) maxUsers?: number | null;
+  @IsOptional() @IsInt() @Min(1) maxStorageGb?: number | null;
+  @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsOptional() @IsBoolean() isPublic?: boolean;
+}
+
+async function latestBackup(dir: string) {
+  try {
+    const files = await readdir(dir);
+    const stats = await Promise.all(files.filter((f) => f.endsWith('.dump')).map(async (f) => ({ f, s: await stat(join(dir, f)) })));
+    const last = stats.sort((a, b) => +b.s.mtime - +a.s.mtime)[0];
+    return last ? { file: last.f, at: last.s.mtime.toISOString(), bytes: last.s.size, count: stats.length } : { file: null, at: null, bytes: 0, count: 0 };
+  } catch {
+    return { file: null, at: null, bytes: 0, count: 0, error: 'backup directory not readable' };
+  }
 }
 
 class BreakGlassDto {
@@ -36,7 +61,44 @@ export class PlatformController {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly auth: AuthService,
+    private readonly billing: BillingService,
   ) {}
+
+  /** Operational health: backups, webhooks, notification activity. No tenant content. */
+  @Get('operations')
+  async operations() {
+    const since = new Date(Date.now() - 86400_000);
+    const [webhooks, failed, notif24h, subs] = await this.prisma.system((tx) => Promise.all([
+      tx.webhookEvent.findMany({ orderBy: { createdAt: 'desc' }, take: 25, select: { id: true, gateway: true, eventId: true, type: true, processedAt: true, error: true, attempts: true, createdAt: true } }),
+      tx.webhookEvent.count({ where: { processedAt: null } }),
+      tx.notification.count({ where: { createdAt: { gt: since } } }),
+      tx.subscription.groupBy({ by: ['status'], _count: true }),
+    ]));
+    return {
+      backup: await latestBackup(process.env.BACKUP_DIR ?? '/var/backups/mrc'),
+      webhooks, unprocessedWebhooks: failed, notifications24h: notif24h,
+      subscriptionsByStatus: Object.fromEntries(subs.map((x) => [x.status, x._count])),
+      gatewayConfigured: !!process.env.RAZORPAY_WEBHOOK_SECRET,
+    };
+  }
+
+  @Post('webhooks/:id/retry')
+  async retryWebhook(@Auth() actor: AuthContext, @Param('id') id: string) {
+    await this.audit.log(null, actor, { orgId: null, action: 'platform.webhook_retry', entityType: 'webhook_event', entityId: id });
+    return this.billing.apply(id);
+  }
+
+  @Patch('plans/:code')
+  async updatePlan(@Auth() actor: AuthContext, @Param('code') code: string, @Body() dto: PlanDto) {
+    const { maxStorageGb, ...rest } = dto;
+    return this.prisma.system(async (tx) => {
+      const before = await tx.plan.findUnique({ where: { code } });
+      if (!before) throw new NotFoundException('Plan not found');
+      const p = await tx.plan.update({ where: { code }, data: { ...rest, ...(maxStorageGb !== undefined ? { maxStorageBytes: maxStorageGb == null ? null : BigInt(maxStorageGb) * 1_000_000_000n } : {}) } });
+      await this.audit.log(tx, actor, { orgId: null, action: 'platform.plan_updated', entityType: 'plan', entityId: p.id, before: { ...before, maxStorageBytes: before.maxStorageBytes?.toString() }, after: dto });
+      return { ...p, maxStorageBytes: p.maxStorageBytes?.toString() ?? null };
+    });
+  }
 
   @Get('overview')
   async overview() {

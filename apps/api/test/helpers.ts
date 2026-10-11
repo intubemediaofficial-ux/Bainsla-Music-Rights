@@ -11,7 +11,7 @@ export const PASSWORD = 'Test-Password-123';
 
 export async function createApp() {
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = mod.createNestApplication({ logger: false });
+  const app = mod.createNestApplication({ logger: false, rawBody: true });
   configureApp(app);
   await app.init();
   return { app, prisma: app.get(PrismaService) };

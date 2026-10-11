@@ -41,7 +41,7 @@ export default function SignupPage() {
         <Field label="Password" name="password" type="password" autoComplete="new-password" required minLength={10} hint="10+ characters with letters and numbers." />
         <label className="flex items-start gap-2 text-sm text-muted-foreground">
           <input type="checkbox" name="acceptTerms" required className="mt-0.5 size-4 accent-[var(--primary)]" />
-          I agree to the terms and privacy policy.
+          <span>I agree to the <Link href="/legal/terms" target="_blank" className="underline">Terms</Link>, <Link href="/legal/privacy" target="_blank" className="underline">Privacy Policy</Link> and <Link href="/legal/dpa" target="_blank" className="underline">Data Processing Terms</Link>, and consent to processing of the personal data I enter.</span>
         </label>
         <Button type="submit" className="h-10 w-full" disabled={busy}>
           {busy && <Loader2 className="size-4 animate-spin" />} Create workspace

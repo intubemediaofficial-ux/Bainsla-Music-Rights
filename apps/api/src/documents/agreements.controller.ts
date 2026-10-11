@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { meter } from '../billing/usage.js';
 import { ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsDate, IsIn, IsNumber, IsObject, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested } from 'class-validator';
@@ -316,6 +317,7 @@ export class AgreementsController {
       await this.prisma.tenant(auth.orgId, (tx) => tx.agreement.update({ where: { id }, data: { templateVersion: t.version } }));
     }
     const pdf = await this.render.pdf(html, `${a.title} · ${kind === 'annexure' ? 'Annexure-A' : lang.toUpperCase()} draft`);
+    await this.prisma.tenant(auth.orgId, (tx) => meter(tx, auth.orgId, 'PDF_JOBS', 1, id));
     const label = kind === 'annexure' ? 'Annexure-A' : lang === 'hi' ? 'Hindi draft' : 'English draft';
     return this.storeGenerated(auth, id, `${a.title} — ${label}`, kind === 'annexure' ? 'ANNEXURE' : 'AGREEMENT', pdf, `${a.title} - ${label}.pdf`, { language: lang, ...templateInfo });
   }
@@ -341,6 +343,7 @@ export class AgreementsController {
         out.push(await this.storeGenerated(auth, id, `${a.title} — NOC ${p.party.legalName} (${dto.language.toUpperCase()})`, 'NOC', pdf, `NOC - ${p.party.legalName}.pdf`, { language: dto.language, partyId: p.partyId }));
       }
     }
+    await this.prisma.tenant(auth.orgId, (tx) => meter(tx, auth.orgId, 'PDF_JOBS', out.length, id));
     return { documents: out };
   }
 
